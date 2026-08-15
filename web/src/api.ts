@@ -67,9 +67,40 @@ export interface Cycle {
   maximum_compressor_hz: number | null;
 }
 
+export interface Page<T> {
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+  items: T[];
+}
+
+export interface SyncResponse {
+  status: "complete";
+  edge: {
+    accepted: boolean;
+    queued_samples: number;
+    delivered_samples: number;
+    pending_samples: number;
+    completed_at: string;
+  };
+}
+
 const json = async <T>(path: string): Promise<T> => {
   const response = await fetch(path, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return response.json() as Promise<T>;
+};
+
+const post = async <T>(path: string): Promise<T> => {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { Accept: "application/json" }
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { detail?: string } | null;
+    throw new Error(payload?.detail || `${response.status} ${response.statusText}`);
+  }
   return response.json() as Promise<T>;
 };
 
@@ -97,20 +128,25 @@ export const api = {
       })}`
     );
   },
-  cycles: (deviceId: string, hours: number) => {
+  cycles: async (deviceId: string, hours: number, page: number, pageSize = 12): Promise<Page<Cycle>> => {
     const end = new Date();
     const start = new Date(end.getTime() - Math.min(hours, 24 * 31) * 3_600_000);
-    return json<{ device_id: string; cycles: Cycle[] }>(
+    const result = await json<{ device_id: string; page: number; page_size: number; total: number; total_pages: number; cycles: Cycle[] }>(
       `/api/v1/cycles?${query({
         device_id: deviceId,
         start: start.toISOString(),
         end: end.toISOString(),
-        limit: 100
+        page,
+        page_size: pageSize
       })}`
     );
+    return { ...result, items: result.cycles };
   },
-  faults: (deviceId: string) =>
-    json<{ device_id: string; faults: Sample[] }>(
-      `/api/v1/faults?${query({ device_id: deviceId, limit: 100 })}`
-    )
+  faults: async (deviceId: string, page: number, pageSize = 8): Promise<Page<Sample>> => {
+    const result = await json<{ device_id: string; page: number; page_size: number; total: number; total_pages: number; faults: Sample[] }>(
+      `/api/v1/faults?${query({ device_id: deviceId, page, page_size: pageSize })}`
+    );
+    return { ...result, items: result.faults };
+  },
+  sync: () => post<SyncResponse>("/api/v1/edge/sync")
 };

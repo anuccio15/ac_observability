@@ -42,6 +42,8 @@ select { min-width: 215px; color: #e7eff2; background: #12212a; border: 1px soli
 .range button.active { color: #071419; background: var(--teal); font-weight: 700; }
 .error-banner { display: flex; gap: 14px; background: rgba(170, 60, 67, .17); border: 1px solid rgba(234, 105, 114, .35); border-radius: 10px; padding: 12px 15px; margin-bottom: 18px; }
 .error-banner span { color: #e9aeb2; }
+.sync-banner { display: flex; align-items: center; gap: 9px; background: rgba(52, 165, 145, .12); border: 1px solid rgba(82, 214, 199, .3); color: #bcebe4; border-radius: 10px; padding: 11px 15px; margin-bottom: 18px; font-size: 12px; }
+.sync-banner span { color: var(--teal); font-weight: 700; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
 .stat-card { --accent: var(--teal); background: linear-gradient(145deg, rgba(20, 36, 46, .97), rgba(13, 26, 34, .97)); border: 1px solid var(--line); border-radius: 14px; padding: 18px 19px; position: relative; overflow: hidden; }
@@ -73,6 +75,13 @@ td { padding: 11px 10px; border-bottom: 1px solid rgba(154, 184, 199, .08); colo
 .mode-heating { color: #ffb86b; background: rgba(235, 143, 63, .14); }
 .mode-standby { color: #8da1ad; }
 .empty { text-align: center; color: #718793; padding: 35px; }
+.clear-check { display: inline-grid; place-items: center; width: 23px; height: 23px; margin-right: 8px; border-radius: 50%; background: rgba(82, 214, 199, .12); color: var(--teal); }
+.pagination { min-height: 42px; padding: 11px 2px 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; color: #718793; font-size: 11px; }
+.pagination div { display: flex; align-items: center; gap: 10px; }
+.pagination strong { color: #9aadb6; font-weight: 500; min-width: 82px; text-align: center; }
+.pagination button { width: 29px; height: 27px; border: 1px solid var(--line); border-radius: 7px; background: #14242e; color: #d4e1e5; font-size: 18px; line-height: 1; }
+.pagination button:hover:not(:disabled) { border-color: rgba(82, 214, 199, .45); color: var(--teal); }
+.pagination button:disabled { cursor: default; opacity: .35; }
 .all-clear { min-height: 210px; display: grid; place-content: center; text-align: center; }
 .all-clear span { width: 42px; height: 42px; margin: 0 auto 12px; display: grid; place-items: center; border-radius: 50%; background: rgba(82, 214, 199, .12); color: var(--teal); font-size: 20px; }
 .all-clear p { color: var(--muted); font-size: 12px; margin: 6px 0 0; }

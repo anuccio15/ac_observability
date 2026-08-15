@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     max_compressed_batch_bytes: int = 64 * 1024 * 1024
     max_expanded_batch_bytes: int = 256 * 1024 * 1024
     max_batch_samples: int = 20_000
+    pi_api_url: str | None = None
+    pi_api_token: SecretStr | None = None
+    pi_sync_timeout_seconds: float = 120.0
 
     @field_validator("database_url")
     @classmethod
@@ -29,7 +32,12 @@ class Settings(BaseSettings):
             raise ValueError("AC_DATABASE_URL must be a PostgreSQL URL")
         return value
 
-    @field_validator("max_compressed_batch_bytes", "max_expanded_batch_bytes", "max_batch_samples")
+    @field_validator(
+        "max_compressed_batch_bytes",
+        "max_expanded_batch_bytes",
+        "max_batch_samples",
+        "pi_sync_timeout_seconds",
+    )
     @classmethod
     def require_positive_limit(cls, value: int) -> int:
         if value <= 0:

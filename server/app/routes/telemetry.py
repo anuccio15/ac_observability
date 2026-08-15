@@ -309,7 +309,8 @@ def cycles(
     device_id: str | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
-    limit: int = Query(100, ge=1, le=500),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(12, ge=1, le=100),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     device = _device(session, device_id)
@@ -348,23 +349,30 @@ def cycles(
                 extract(epoch FROM max(captured_at) - min(captured_at)) AS duration_seconds,
                 count(*) AS sample_count,
                 avg(compressor_hz) AS average_compressor_hz,
-                max(compressor_hz) AS maximum_compressor_hz
+                max(compressor_hz) AS maximum_compressor_hz,
+                count(*) OVER () AS total_count
             FROM grouped
             WHERE mode IS NOT NULL
             GROUP BY cycle_group, mode
             ORDER BY started_at DESC
-            LIMIT :limit
+            LIMIT :page_size OFFSET :offset
             """
         ),
         {
             "device_id": device.device_id,
             "range_start": range_start,
             "range_end": range_end,
-            "limit": limit,
+            "page_size": page_size,
+            "offset": (page - 1) * page_size,
         },
-    )
+    ).all()
+    total = int(rows[0].total_count) if rows else 0
     return {
         "device_id": device.device_id,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": math.ceil(total / page_size) if total else 0,
         "cycles": [
             {
                 "mode": row.mode,
@@ -391,17 +399,30 @@ def cycles(
 @router.get("/faults")
 def faults(
     device_id: str | None = None,
-    limit: int = Query(100, ge=1, le=500),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(8, ge=1, le=100),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     device = _device(session, device_id)
+    condition = (
+        TelemetryEvent.device_id == device.device_id,
+        TelemetryEvent.urgent.is_(True),
+    )
+    total = session.scalar(
+        select(func.count()).select_from(TelemetryEvent).where(*condition)
+    ) or 0
     events = session.scalars(
         select(TelemetryEvent)
-        .where(
-            TelemetryEvent.device_id == device.device_id,
-            TelemetryEvent.urgent.is_(True),
-        )
+        .where(*condition)
         .order_by(TelemetryEvent.captured_at.desc())
-        .limit(limit)
+        .limit(page_size)
+        .offset((page - 1) * page_size)
     )
-    return {"device_id": device.device_id, "faults": [_event_payload(event) for event in events]}
+    return {
+        "device_id": device.device_id,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": math.ceil(total / page_size) if total else 0,
+        "faults": [_event_payload(event) for event in events],
+    }

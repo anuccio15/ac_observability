@@ -13,7 +13,7 @@ from sqlalchemy import Engine
 from . import __version__
 from .config import Settings, get_settings
 from .db import build_engine, build_session_factory
-from .routes import catalog, health, ingest, telemetry
+from .routes import catalog, edge, health, ingest, telemetry
 
 
 def create_app(settings: Settings | None = None, engine: Engine | None = None) -> FastAPI:
@@ -43,6 +43,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     app.include_router(ingest.router)
     app.include_router(catalog.router)
     app.include_router(telemetry.router)
+    app.include_router(edge.router)
     dashboard = Path(__file__).with_name("static")
     if dashboard.is_dir():
         app.mount("/", StaticFiles(directory=dashboard, html=True), name="dashboard")

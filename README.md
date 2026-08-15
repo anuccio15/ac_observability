@@ -66,6 +66,7 @@ GET /api/v1/telemetry/series
 GET /api/v1/summary
 GET /api/v1/cycles
 GET /api/v1/faults
+POST /api/v1/edge/sync
 GET /api/v1/metrics/catalog
 ```
 
@@ -123,7 +124,10 @@ curl --fail http://127.0.0.1:8081/ready
 ```
 
 This NAS uses port `8081` because its existing nginx service occupies `8080`.
-The published port is controlled by `AC_PORT` in `.env`.
+The published port is controlled by `AC_PORT` in `.env`. Configure
+`AC_PI_API_URL` and `AC_PI_API_TOKEN` to enable the dashboard's manual sync
+button. It asks the Pi to use its normal acknowledged batch uploader, and only
+then refreshes the charts and paginated tables.
 
 View recent logs or follow them live:
 

@@ -175,10 +175,14 @@ def test_dashboard_query_endpoints(client) -> None:
     assert cycles.status_code == 200, cycles.text
     assert cycles.json()["cycles"][0]["mode"] == "cooling"
     assert cycles.json()["cycles"][0]["sample_count"] == 3
+    assert cycles.json()["page"] == 1
+    assert cycles.json()["total"] == 1
 
     faults = client.get("/api/v1/faults")
     assert faults.status_code == 200
     assert faults.json()["faults"][0]["urgent_reason"] == "test fault"
+    assert faults.json()["page"] == 1
+    assert faults.json()["total"] == 1
 
 
 def test_series_rejects_unknown_or_text_metrics(client) -> None:

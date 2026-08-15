@@ -40,6 +40,9 @@ services:
       AC_DATABASE_URL: ${AC_DATABASE_URL:?set AC_DATABASE_URL in .env}
       AC_EDGE_API_TOKEN: ${AC_EDGE_API_TOKEN:?set AC_EDGE_API_TOKEN in .env}
       AC_LOG_LEVEL: ${AC_LOG_LEVEL:-INFO}
+      AC_PI_API_URL: ${AC_PI_API_URL:-}
+      AC_PI_API_TOKEN: ${AC_PI_API_TOKEN:-}
+      AC_PI_SYNC_TIMEOUT_SECONDS: ${AC_PI_SYNC_TIMEOUT_SECONDS:-120}
     ports:
       - "${AC_PORT:-8080}:8080"
     depends_on:
