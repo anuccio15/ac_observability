@@ -1,3 +1,11 @@
+FROM node:22-bookworm-slim AS web-build
+
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web ./
+RUN npm run build
+
 FROM python:3.13-slim-bookworm AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -10,6 +18,7 @@ RUN groupadd --system acmetrics \
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY server ./server
+COPY --from=web-build /web/dist ./server/app/static
 COPY alembic.ini ./
 RUN pip install --no-cache-dir .
 

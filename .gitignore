@@ -8,3 +8,5 @@ htmlcov/
 backups/*.dump
 backups/*.sql
 .DS_Store
+web/node_modules/
+web/dist/

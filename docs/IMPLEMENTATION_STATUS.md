@@ -19,10 +19,23 @@
 - Verified custom-format PostgreSQL backup and guarded restore scripts
 - Synology/GCP portability boundary documented
 
+## Completed in server v0.2.0
+
+- Device inventory and latest-sample APIs
+- Automatically bucketed multi-metric time-series API
+- Windowed summary aggregates and data freshness metadata
+- On-demand operating-segment detection with duration and compressor statistics
+- Read-only urgent/fault event feed
+- Responsive React and Apache ECharts dashboard served by the application image
+- Desktop and 390-pixel mobile visual QA with no browser console errors
+- Secure Pi-to-Synology configuration with three-hour scheduled delivery,
+  immediate urgent delivery, and one-minute durable retry
+- First live Pi backfill acknowledged with 341 samples and zero remaining backlog
+
 ## Verification record
 
-- 12 local unit/API tests passed.
-- 16 tests passed against an isolated PostgreSQL 16 container.
+- 12 local unit/API tests passed for v0.1.0.
+- 18 tests pass against an isolated PostgreSQL 16 container in v0.2.0.
 - Production Compose smoke test completed `db → migrate → app` successfully.
 - `/health` and `/ready` returned healthy/ready with migration `0001_initial`.
 - A real-format captured Bosch frame was accepted once and returned
@@ -34,9 +47,8 @@
 
 ## Next implementation slice
 
-1. Add device, latest-sample, event pagination, and time-series query APIs.
-2. Port decoder v1 to create immutable server-side projections.
-3. Add minute/hour/day rollups and automatic chart resolution.
-4. Scaffold the React dashboard against those query APIs.
-5. Add DSM deployment configuration only after the Synology CPU architecture,
-   volume paths, hostname, and TLS/reverse-proxy choices are confirmed.
+1. Port decoder v1 to create immutable server-side projections.
+2. Add persisted minute/hour/day rollups after real query volume requires them.
+3. Add cycle and fault materialization when on-demand range queries become costly.
+4. Add optional dashboard authentication before exposing it outside the LAN.
+5. Add Synology reverse-proxy TLS and automated logical backup scheduling.

@@ -123,3 +123,77 @@ def test_metric_catalog_is_seeded(client, database_engine) -> None:
     assert "candidate_ac_input_voltage_v" in keys
     with Session(database_engine) as session:
         assert session.scalar(select(func.count()).select_from(MetricCatalogEntry)) >= 20
+
+
+def test_dashboard_query_endpoints(client) -> None:
+    samples = [
+        make_sample("2026-08-13T21:08:46+00:00", compressor_hz=20),
+        make_sample("2026-08-13T21:08:51+00:00", compressor_hz=30),
+        make_sample("2026-08-13T21:08:56+00:00", compressor_hz=40),
+    ]
+    samples[-1]["urgent"] = True
+    samples[-1]["urgent_reason"] = "test fault"
+    response = client.post(
+        "/v1/telemetry/batches",
+        content=gzip_json(make_batch(samples)),
+        headers=edge_headers(),
+    )
+    assert response.status_code == 200, response.text
+
+    devices = client.get("/api/v1/devices")
+    assert devices.status_code == 200
+    assert devices.json()["devices"][0]["event_count"] == 3
+    assert devices.json()["devices"][0]["urgent_count"] == 1
+
+    latest = client.get("/api/v1/telemetry/latest")
+    assert latest.status_code == 200
+    assert latest.json()["sample"]["metrics"]["compressor_set_hz"] == 40
+
+    series = client.get(
+        "/api/v1/telemetry/series",
+        params={
+            "metrics": "compressor_set_hz,outdoor_ambient_t4_f",
+            "start": "2026-08-13T21:00:00Z",
+            "end": "2026-08-13T22:00:00Z",
+            "max_points": 500,
+        },
+    )
+    assert series.status_code == 200, series.text
+    assert series.json()["series"]["compressor_set_hz"]["points"]
+
+    summary = client.get("/api/v1/summary", params={"hours": 24 * 31})
+    assert summary.status_code == 200
+    assert summary.json()["latest"]["metrics"]["compressor_set_hz"] == 40
+
+    cycles = client.get(
+        "/api/v1/cycles",
+        params={
+            "start": "2026-08-13T21:00:00Z",
+            "end": "2026-08-13T22:00:00Z",
+        },
+    )
+    assert cycles.status_code == 200, cycles.text
+    assert cycles.json()["cycles"][0]["mode"] == "cooling"
+    assert cycles.json()["cycles"][0]["sample_count"] == 3
+
+    faults = client.get("/api/v1/faults")
+    assert faults.status_code == 200
+    assert faults.json()["faults"][0]["urgent_reason"] == "test fault"
+
+
+def test_series_rejects_unknown_or_text_metrics(client) -> None:
+    payload = make_batch()
+    assert client.post(
+        "/v1/telemetry/batches",
+        content=gzip_json(payload),
+        headers=edge_headers(),
+    ).status_code == 200
+    response = client.get(
+        "/api/v1/telemetry/series",
+        params={
+            "metrics": "mode,not_a_metric",
+            "start": "2026-08-13T21:00:00Z",
+            "end": "2026-08-13T22:00:00Z",
+        },
+    )
+    assert response.status_code == 422

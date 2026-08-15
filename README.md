@@ -49,9 +49,29 @@ ac_metrics/
 └── scripts/
 ```
 
-The browser dashboard and decoded telemetry query APIs are the next phase; the
-durable, authenticated Pi ingestion path is ready first so data collection can
-begin without waiting for the visualization layer.
+The durable ingestion path and browser dashboard are implemented. Raw frames and
+the Pi's decoded metrics remain authoritative; future decoder improvements can
+add versioned server-side projections without rewriting either source.
+
+## Dashboard and read APIs
+
+The production container serves the AC Observatory dashboard at `/`. It refreshes
+automatically and provides responsive compressor, thermal, refrigerant, pressure,
+electrical, cycle, and urgent-event views. Read-only data endpoints include:
+
+```text
+GET /api/v1/devices
+GET /api/v1/telemetry/latest
+GET /api/v1/telemetry/series
+GET /api/v1/summary
+GET /api/v1/cycles
+GET /api/v1/faults
+GET /api/v1/metrics/catalog
+```
+
+Time-series requests accept a device, comma-separated numeric metrics, timezone-
+aware start/end values, and a maximum point count. The server selects a bucket
+size automatically so long ranges remain chartable without discarding raw events.
 
 ## Core invariants
 
