@@ -98,9 +98,12 @@ Check container and API health:
 
 ```bash
 docker-compose ps
-curl --fail http://127.0.0.1:8080/health
-curl --fail http://127.0.0.1:8080/ready
+curl --fail http://127.0.0.1:8081/health
+curl --fail http://127.0.0.1:8081/ready
 ```
+
+This NAS uses port `8081` because its existing nginx service occupies `8080`.
+The published port is controlled by `AC_PORT` in `.env`.
 
 View recent logs or follow them live:
 

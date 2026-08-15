@@ -69,7 +69,7 @@ changed. Do not expose that port directly to the public internet.
 Configure the Pi's upstream endpoint as:
 
 ```text
-http://<nas-lan-address>:8080/api/v1/ingest/batches
+http://<nas-lan-address>:<AC_PORT>/v1/telemetry/batches
 ```
 
 Use the same edge token stored in `.env`. The server accepts gzip-compressed JSON
