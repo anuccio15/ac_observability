@@ -76,6 +76,55 @@ curl http://127.0.0.1:8080/health
 curl http://127.0.0.1:8080/ready
 ```
 
+## Synology start and operations
+
+The current Synology deployment is cloned at `~/projects/ac_observability`. Its
+user profile defines `docker-compose` as the verified Compose v2 binary and adds
+the required `sudo`, so run these commands **without** putting another `sudo` in
+front of them.
+
+SSH to the NAS and start or rebuild the application:
+
+```bash
+ssh alexnuccio@192.168.0.117
+cd ~/projects/ac_observability
+docker-compose up -d --build
+```
+
+If the alias was added during the current SSH session, load it once with
+`. ~/.profile`. New SSH sessions load it automatically.
+
+Check container and API health:
+
+```bash
+docker-compose ps
+curl --fail http://127.0.0.1:8080/health
+curl --fail http://127.0.0.1:8080/ready
+```
+
+View recent logs or follow them live:
+
+```bash
+docker-compose logs --tail=100 app db migrate
+docker-compose logs --follow app
+```
+
+Restart or stop the application:
+
+```bash
+docker-compose restart
+docker-compose down
+```
+
+`docker-compose down` removes the containers and network but preserves the
+PostgreSQL named volume. Do not add `--volumes` unless intentionally deleting the
+database. To deploy updates:
+
+```bash
+git pull --ff-only
+docker-compose up -d --build
+```
+
 Run isolated PostgreSQL integration tests with:
 
 ```bash
