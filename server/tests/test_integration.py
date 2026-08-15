@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -201,3 +202,49 @@ def test_series_rejects_unknown_or_text_metrics(client) -> None:
         },
     )
     assert response.status_code == 422
+
+
+def test_history_endpoints_return_stable_second_pages(client) -> None:
+    start = datetime(2026, 8, 13, 22, 0, tzinfo=timezone.utc)
+    samples = []
+    for index in range(15):
+        captured_at = (start + timedelta(seconds=index * 10)).isoformat()
+        sample = make_sample(captured_at, compressor_hz=20 + index)
+        sample["metrics"]["mode"] = "cooling" if index % 2 == 0 else "standby"
+        sample["metrics"]["mode_code"] = 2 if index % 2 == 0 else 0
+        if index < 10:
+            sample["urgent"] = True
+            sample["urgent_reason"] = f"fault {index}"
+        samples.append(sample)
+    assert client.post(
+        "/v1/telemetry/batches",
+        content=gzip_json(make_batch(samples)),
+        headers=edge_headers(),
+    ).status_code == 200
+
+    cycle_page = client.get(
+        "/api/v1/cycles",
+        params={
+            "start": "2026-08-13T21:59:00Z",
+            "end": "2026-08-13T23:00:00Z",
+            "page": 2,
+            "page_size": 5,
+        },
+    )
+    assert cycle_page.status_code == 200, cycle_page.text
+    assert cycle_page.json()["total"] == 15
+    assert cycle_page.json()["total_pages"] == 3
+    assert len(cycle_page.json()["cycles"]) == 5
+
+    fault_page = client.get(
+        "/api/v1/faults", params={"page": 2, "page_size": 4}
+    )
+    assert fault_page.status_code == 200, fault_page.text
+    assert fault_page.json()["total"] == 10
+    assert fault_page.json()["total_pages"] == 3
+    assert [fault["urgent_reason"] for fault in fault_page.json()["faults"]] == [
+        "fault 5",
+        "fault 4",
+        "fault 3",
+        "fault 2",
+    ]
