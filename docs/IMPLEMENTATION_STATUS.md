@@ -45,10 +45,21 @@
 - All disposable containers, test databases, volumes, and smoke credentials were
   removed after verification.
 
+## Completed in server v0.4.0
+
+- Hourly and dashboard-triggered read-only Pi health probes
+- Persisted connectivity transitions without duplicate alert rows
+- Explicit healthy, Bosch disconnected, Pi unreachable, telemetry stale, and
+  unknown states with last-check timestamps
+- Dashboard alert banner, collector connection details, and transition history
+- Deterministic local-day cooling summaries with runtime, cycles, temperature,
+  compressor demand, telemetry coverage, prior-day changes, and seven-day baseline
+- Hourly browser refresh cadence retained to support Synology sleep behavior
+
 ## Next implementation slice
 
 1. Port decoder v1 to create immutable server-side projections.
-2. Add persisted minute/hour/day rollups after real query volume requires them.
+2. Persist minute/hour/day rollups after real query volume requires them.
 3. Add cycle and fault materialization when on-demand range queries become costly.
-4. Add optional dashboard authentication before exposing it outside the LAN.
-5. Add Synology reverse-proxy TLS and automated logical backup scheduling.
+4. Add optional push delivery through an always-on external heartbeat observer.
+5. Add optional dashboard authentication before exposing it outside the LAN.

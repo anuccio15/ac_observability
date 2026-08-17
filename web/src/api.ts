@@ -86,6 +86,44 @@ export interface SyncResponse {
   };
 }
 
+export type EdgeState = "healthy" | "bosch_disconnected" | "pi_unreachable" | "telemetry_stale" | "unknown";
+
+export interface EdgeStatus {
+  edge_id: string;
+  state: EdgeState;
+  checked_at: string | null;
+  state_since: string | null;
+  pi_reachable: boolean | null;
+  bluetooth_connected: boolean | null;
+  last_frame_at: string | null;
+  detail: Record<string, unknown>;
+}
+
+export interface EdgeTransition {
+  id: number;
+  from_state: EdgeState | null;
+  to_state: EdgeState;
+  changed_at: string;
+  detail: Record<string, unknown>;
+}
+
+export interface DailySummary {
+  date: string;
+  sample_count: number;
+  cooling_runtime_seconds: number;
+  cycle_count: number;
+  average_outdoor_temp_f: number | null;
+  maximum_outdoor_temp_f: number | null;
+  average_compressor_hz: number | null;
+  peak_compressor_hz: number | null;
+  urgent_count: number;
+  telemetry_gap_count: number;
+  telemetry_coverage_percent: number;
+  narrative: string;
+  versus_previous: { outdoor_temp_f: number | null; cooling_runtime_seconds: number | null };
+  versus_7_day_average: { cooling_runtime_seconds: number | null; comparison_days: number };
+}
+
 const json = async <T>(path: string): Promise<T> => {
   const response = await fetch(path, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -148,5 +186,15 @@ export const api = {
     );
     return { ...result, items: result.faults };
   },
-  sync: () => post<SyncResponse>("/api/v1/edge/sync")
+  sync: () => post<SyncResponse>("/api/v1/edge/sync"),
+  checkEdgeStatus: () => post<{ current: EdgeStatus }>("/api/v1/edge/status/check"),
+  edgeStatus: () => json<{ current: EdgeStatus; transitions: EdgeTransition[] }>("/api/v1/edge/status"),
+  dailySummaries: (deviceId: string, days = 14) =>
+    json<{ device_id: string; timezone: string; days: DailySummary[] }>(
+      `/api/v1/daily-summaries?${query({
+        device_id: deviceId,
+        days,
+        timezone_name: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Phoenix"
+      })}`
+    )
 };

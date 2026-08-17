@@ -56,8 +56,9 @@ add versioned server-side projections without rewriting either source.
 ## Dashboard and read APIs
 
 The production container serves the AC Observatory dashboard at `/`. It refreshes
-automatically and provides responsive compressor, thermal, refrigerant, pressure,
-electrical, cycle, and urgent-event views. Read-only data endpoints include:
+hourly and on manual sync, and provides responsive compressor, thermal, refrigerant,
+pressure, electrical, cycle, connectivity-alert, daily-summary, and urgent-event
+views. Read-only data endpoints include:
 
 ```text
 GET /api/v1/devices
@@ -66,6 +67,9 @@ GET /api/v1/telemetry/series
 GET /api/v1/summary
 GET /api/v1/cycles
 GET /api/v1/faults
+GET /api/v1/daily-summaries
+GET /api/v1/edge/status
+POST /api/v1/edge/status/check
 POST /api/v1/edge/sync
 GET /api/v1/metrics/catalog
 ```
@@ -128,6 +132,20 @@ The published port is controlled by `AC_PORT` in `.env`. Configure
 `AC_PI_API_URL` and `AC_PI_API_TOKEN` to enable the dashboard's manual sync
 button. It asks the Pi to use its normal acknowledged batch uploader, and only
 then refreshes the charts and paginated tables.
+
+The server performs a read-only Pi health check once per hour and whenever the
+dashboard loads or manually syncs. It distinguishes Pi unreachable, Bosch
+Bluetooth disconnected, stale telemetry, healthy, and not-yet-checked states.
+Only state changes are retained in the alert history. Because the Synology may
+sleep, the dashboard always displays the last check time; a sleeping NAS cannot
+detect an outage until it wakes. `AC_PI_STATUS_INTERVAL_SECONDS` controls the
+schedule and defaults to 3600 seconds.
+
+Daily summaries are calculated deterministically from stored telemetry using the
+browser's local timezone. They report cooling runtime, cycles, temperature,
+compressor demand, telemetry coverage/gaps, prior-day changes, and a seven-day
+runtime baseline. They intentionally do not claim energy consumption while the
+electrical mappings remain candidates.
 
 View recent logs or follow them live:
 

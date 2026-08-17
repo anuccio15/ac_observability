@@ -44,6 +44,12 @@ select { min-width: 215px; color: #e7eff2; background: #12212a; border: 1px soli
 .error-banner span { color: #e9aeb2; }
 .sync-banner { display: flex; align-items: center; gap: 9px; background: rgba(52, 165, 145, .12); border: 1px solid rgba(82, 214, 199, .3); color: #bcebe4; border-radius: 10px; padding: 11px 15px; margin-bottom: 18px; font-size: 12px; }
 .sync-banner span { color: var(--teal); font-weight: 700; }
+.alert-banner { display: flex; align-items: center; gap: 13px; border: 1px solid rgba(255, 184, 107, .35); background: rgba(138, 83, 28, .16); border-radius: 11px; padding: 13px 15px; margin-bottom: 18px; }
+.alert-banner strong { color: #ffd09a; font-size: 13px; }
+.alert-banner p { color: #adbec6; margin: 3px 0 0; font-size: 11px; }
+.alert-icon { flex: 0 0 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: #081218; background: #ffb86b; font-weight: 800; }
+.alert-pi_unreachable { border-color: rgba(230, 124, 132, .42); background: rgba(161, 56, 64, .14); }
+.alert-pi_unreachable .alert-icon { background: #e67c84; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
 .stat-card { --accent: var(--teal); background: linear-gradient(145deg, rgba(20, 36, 46, .97), rgba(13, 26, 34, .97)); border: 1px solid var(--line); border-radius: 14px; padding: 18px 19px; position: relative; overflow: hidden; }
@@ -65,6 +71,25 @@ select { min-width: 215px; color: #e7eff2; background: #12212a; border: 1px soli
 .system-card dd { margin: 0; font: 500 12px "SFMono-Regular", Consolas, monospace; text-align: right; }
 .good { color: var(--teal); } .warning { color: #ffb86b; }
 .candidate-note { color: #718793; font-size: 10px; margin: -4px 0 0; }
+.daily-summary { margin-top: 15px; display: grid; grid-template-columns: minmax(220px, 1.4fr) minmax(250px, 1fr); gap: 18px; align-items: stretch; }
+.daily-callout { border-left: 2px solid var(--teal); padding: 13px 16px; background: rgba(82, 214, 199, .055); }
+.daily-callout > span { color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.daily-callout p { color: #d3e0e4; font-size: 15px; line-height: 1.55; margin: 8px 0 12px; }
+.daily-callout small { color: #718793; font-size: 10px; }
+.daily-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.daily-metrics div { background: #10212a; padding: 13px; display: flex; flex-direction: column; gap: 6px; }
+.daily-metrics span { color: #718793; font-size: 10px; }
+.daily-metrics strong { font: 600 16px "SFMono-Regular", Consolas, monospace; color: #d4e1e5; }
+.summary-empty { min-height: 130px; }
+.transition-list { margin-top: 12px; }
+.transition-list > div:not(.empty) { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid rgba(154, 184, 199, .09); }
+.transition-list p { margin: 0; display: flex; flex: 1; justify-content: space-between; gap: 10px; }
+.transition-list strong { font-size: 11px; font-weight: 600; }
+.transition-list small { color: #718793; font-size: 10px; }
+.transition-dot { width: 7px; height: 7px; border-radius: 50%; background: #778b95; box-shadow: 0 0 8px rgba(119, 139, 149, .5); }
+.state-healthy { background: var(--teal); box-shadow: 0 0 8px rgba(82, 214, 199, .5); }
+.state-bosch_disconnected, .state-telemetry_stale { background: #ffb86b; box-shadow: 0 0 8px rgba(255, 184, 107, .5); }
+.state-pi_unreachable { background: #e67c84; box-shadow: 0 0 8px rgba(230, 124, 132, .5); }
 
 .table-wrap { overflow-x: auto; margin-top: 10px; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -106,5 +131,6 @@ footer { max-width: 1480px; margin: 0 auto; padding: 20px 24px 35px; border-top:
   .stats-grid, .dashboard-grid { grid-template-columns: 1fr; }
   .span-2 { grid-column: span 1; }
   .stat-value { font-size: 24px; }
+  .daily-summary { grid-template-columns: 1fr; }
   footer { margin: 0 14px; padding-inline: 0; flex-direction: column; gap: 7px; }
 }

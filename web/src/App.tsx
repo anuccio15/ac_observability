@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, type Cycle, type Device, type Page, type Sample, type SeriesResponse, type SummaryResponse } from "./api";
+import { api, type Cycle, type DailySummary, type Device, type EdgeStatus, type EdgeTransition, type Page, type Sample, type SeriesResponse, type SummaryResponse } from "./api";
 import { MetricChart } from "./MetricChart";
 
 const RANGE_OPTIONS = [
@@ -19,6 +19,51 @@ const duration = (seconds: number) => {
   const minutes = Math.round((seconds % 3600) / 60);
   return hours ? `${hours}h ${minutes}m` : `${minutes} min`;
 };
+
+const STATUS_LABELS: Record<string, string> = {
+  healthy: "Collector healthy",
+  bosch_disconnected: "Bosch disconnected",
+  pi_unreachable: "Pi unreachable",
+  telemetry_stale: "Telemetry stale",
+  unknown: "Status unknown"
+};
+
+function AlertBanner({ status }: { status: EdgeStatus | null }) {
+  if (!status || status.state === "healthy") return null;
+  const explanation = status.state === "pi_unreachable"
+    ? "The Synology could not reach the Raspberry Pi during its latest check."
+    : status.state === "bosch_disconnected"
+      ? "The Pi is online, but its Bluetooth connection to the Bosch gateway is down."
+      : status.state === "telemetry_stale"
+        ? "Bluetooth reports connected, but no recent telemetry frame has arrived."
+        : "No Pi status check has completed yet.";
+  return (
+    <div className={`alert-banner alert-${status.state}`} role="alert">
+      <span className="alert-icon">!</span>
+      <div><strong>{STATUS_LABELS[status.state]}</strong><p>{explanation} Last checked {when(status.checked_at)}.</p></div>
+    </div>
+  );
+}
+
+function DailySummaryPanel({ days }: { days: DailySummary[] }) {
+  const latest = days[0];
+  if (!latest) return <div className="empty summary-empty">No daily summary is available yet</div>;
+  return (
+    <div className="daily-summary">
+      <div className="daily-callout">
+        <span>{new Date(`${latest.date}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</span>
+        <p>{latest.narrative}</p>
+        <small>{latest.telemetry_coverage_percent.toFixed(1)}% telemetry coverage · {latest.telemetry_gap_count} gaps</small>
+      </div>
+      <div className="daily-metrics">
+        <div><span>Cooling runtime</span><strong>{duration(latest.cooling_runtime_seconds)}</strong></div>
+        <div><span>Cycles</span><strong>{latest.cycle_count}</strong></div>
+        <div><span>Avg outdoor</span><strong>{number(latest.average_outdoor_temp_f, 1)}°F</strong></div>
+        <div><span>Peak compressor</span><strong>{number(latest.peak_compressor_hz, 0)} Hz</strong></div>
+      </div>
+    </div>
+  );
+}
 
 function StatCard({ label, value, unit, detail, accent }: {
   label: string; value: string; unit?: string; detail: string; accent?: string;
@@ -114,6 +159,9 @@ export default function App() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [edgeStatus, setEdgeStatus] = useState<EdgeStatus | null>(null);
+  const [edgeTransitions, setEdgeTransitions] = useState<EdgeTransition[]>([]);
+  const [daily, setDaily] = useState<DailySummary[]>([]);
 
   useEffect(() => {
     api.devices()
@@ -128,18 +176,23 @@ export default function App() {
     if (!deviceId) return;
     setLoading(true);
     try {
-      const [nextSummary, nextSeries, nextCycles, nextFaults, nextDevices] = await Promise.all([
+      const [nextSummary, nextSeries, nextCycles, nextFaults, nextDevices, nextDaily, statusResult] = await Promise.all([
         api.summary(deviceId, hours),
         api.series(deviceId, hours),
         api.cycles(deviceId, hours, cyclePage),
         api.faults(deviceId, faultPage),
-        api.devices()
+        api.devices(),
+        api.dailySummaries(deviceId),
+        api.edgeStatus()
       ]);
       setSummary(nextSummary);
       setSeries(nextSeries);
       setCycles(nextCycles);
       setFaults(nextFaults);
       setDevices(nextDevices.devices);
+      setDaily(nextDaily.days);
+      setEdgeStatus(statusResult.current);
+      setEdgeTransitions(statusResult.transitions);
       setLastRefresh(new Date());
       setError(null);
     } catch (reason) {
@@ -154,6 +207,8 @@ export default function App() {
     setSyncMessage(null);
     try {
       const result = await api.sync();
+      const checked = await api.checkEdgeStatus();
+      setEdgeStatus(checked.current);
       const count = result.edge.delivered_samples;
       setSyncMessage(count ? `Synced ${count.toLocaleString()} new samples from the Pi.` : "Pi is already up to date.");
       await refresh();
@@ -165,15 +220,24 @@ export default function App() {
   }, [refresh]);
 
   useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 60_000);
+    const checkAndRefresh = async () => {
+      try {
+        const { current } = await api.checkEdgeStatus();
+        setEdgeStatus(current);
+      } catch {
+        // The persisted status still communicates the last known check.
+      }
+      await refresh();
+    };
+    void checkAndRefresh();
+    const timer = window.setInterval(() => void checkAndRefresh(), 3_600_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
 
   const latest = summary?.latest;
   const metrics = latest?.metrics ?? {};
   const selectedDevice = devices.find((device) => device.device_id === deviceId);
-  const fresh = latest ? Date.now() - new Date(latest.captured_at).getTime() < 4 * 3_600_000 : false;
+  const fresh = edgeStatus?.state === "healthy";
   const cycleStats = useMemo(() => {
     const active = cycles.items.filter((cycle) => cycle.mode !== "standby");
     return {
@@ -190,7 +254,7 @@ export default function App() {
           <div><strong>AC Observatory</strong><small>Bosch IDS Premium Connected</small></div>
         </div>
         <div className="top-actions">
-          <div className={`status-pill ${fresh ? "online" : "stale"}`}><span />{fresh ? "Current" : "Awaiting upload"}</div>
+          <div className={`status-pill ${fresh ? "online" : "stale"}`}><span />{STATUS_LABELS[edgeStatus?.state ?? "unknown"]}</div>
           <button className="refresh" onClick={() => void syncFromPi()} disabled={syncing || loading}>
             {syncing ? "Syncing Pi…" : loading ? "Loading…" : "Sync from Pi"}
           </button>
@@ -216,6 +280,7 @@ export default function App() {
 
         {error && <div className="error-banner"><strong>Data unavailable</strong><span>{error}</span></div>}
         {syncMessage && <div className="sync-banner"><span>✓</span>{syncMessage}</div>}
+        <AlertBanner status={edgeStatus} />
 
         <section className="stats-grid">
           <StatCard label="Operating mode" value={String(metrics.mode ?? "Unknown")} detail={`Updated ${when(latest?.captured_at)}`} accent="#52d6c7" />
@@ -233,12 +298,29 @@ export default function App() {
             <div className="panel-head"><div><p className="eyebrow">SYSTEM</p><h2>Collector status</h2></div></div>
             <dl>
               <div><dt>Last sample</dt><dd>{when(latest?.captured_at)}</dd></div>
+              <div><dt>Pi reachable</dt><dd className={edgeStatus?.pi_reachable ? "good" : "warning"}>{edgeStatus?.pi_reachable == null ? "Unknown" : edgeStatus.pi_reachable ? "Yes" : "No"}</dd></div>
+              <div><dt>Bosch Bluetooth</dt><dd className={edgeStatus?.bluetooth_connected ? "good" : "warning"}>{edgeStatus?.bluetooth_connected == null ? "Unknown" : edgeStatus.bluetooth_connected ? "Connected" : "Disconnected"}</dd></div>
+              <div><dt>Status checked</dt><dd>{when(edgeStatus?.checked_at)}</dd></div>
               <div><dt>Samples in range</dt><dd>{summary?.event_count.toLocaleString() ?? "—"}</dd></div>
               <div><dt>Stored events</dt><dd>{selectedDevice?.event_count.toLocaleString() ?? "—"}</dd></div>
               <div><dt>Active runtime</dt><dd>{duration(cycleStats.runtime)}</dd></div>
               <div><dt>Decoder</dt><dd>v{latest?.decoder_version ?? "—"}</dd></div>
               <div><dt>Urgent events</dt><dd className={faults.total ? "warning" : "good"}>{faults.total}</dd></div>
             </dl>
+          </article>
+
+          <article className="panel span-2 daily-panel">
+            <div className="panel-head"><div><p className="eyebrow">DAILY INSIGHT</p><h2>Efficiency summary</h2></div><span>Deterministic · no LLM</span></div>
+            <DailySummaryPanel days={daily} />
+          </article>
+          <article className="panel status-history">
+            <div className="panel-head"><div><p className="eyebrow">CONNECTIVITY</p><h2>Status history</h2></div><span>Transitions only</span></div>
+            <div className="transition-list">
+              {edgeTransitions.slice(0, 5).map((item) => (
+                <div key={item.id}><span className={`transition-dot state-${item.to_state}`} /><p><strong>{STATUS_LABELS[item.to_state]}</strong><small>{when(item.changed_at)}</small></p></div>
+              ))}
+              {!edgeTransitions.length && <div className="empty">No status transitions recorded</div>}
+            </div>
           </article>
 
           <article className="panel span-2">

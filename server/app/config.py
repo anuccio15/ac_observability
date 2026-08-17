@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     pi_api_url: str | None = None
     pi_api_token: SecretStr | None = None
     pi_sync_timeout_seconds: float = 120.0
+    pi_status_timeout_seconds: float = 8.0
+    pi_status_interval_seconds: int = 3600
+    telemetry_stale_seconds: int = 900
 
     @field_validator("database_url")
     @classmethod
@@ -37,6 +40,9 @@ class Settings(BaseSettings):
         "max_expanded_batch_bytes",
         "max_batch_samples",
         "pi_sync_timeout_seconds",
+        "pi_status_timeout_seconds",
+        "pi_status_interval_seconds",
+        "telemetry_stale_seconds",
     )
     @classmethod
     def require_positive_limit(cls, value: int) -> int:

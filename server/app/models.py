@@ -138,3 +138,31 @@ class DecodedProjection(Base):
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     confidence: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False)
     decode_error: Mapped[str | None] = mapped_column(Text)
+
+
+class EdgeStatus(Base):
+    __tablename__ = "edge_status"
+
+    edge_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    state_since: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    pi_reachable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    bluetooth_connected: Mapped[bool | None] = mapped_column(Boolean)
+    last_frame_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    detail: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+
+class EdgeStatusTransition(Base):
+    __tablename__ = "edge_status_transitions"
+
+    transition_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    edge_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    from_state: Mapped[str | None] = mapped_column(String(32))
+    to_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    detail: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+    __table_args__ = (
+        Index("edge_status_transitions_changed_idx", "edge_id", "changed_at"),
+    )

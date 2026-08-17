@@ -17,6 +17,13 @@ The Pi owns connectivity, frame validation, immediate safety classification,
 and outage buffering. The Synology owns durable history, evolving decoding,
 rollups, analysis, and presentation.
 
+The Synology probes the Pi's read-only health endpoint hourly and on dashboard
+load. It stores status transitions rather than repeated checks. This keeps LAN
+traffic and NAS wakeups low while making the uncertainty explicit: when the NAS
+is asleep, the last known state remains visible until the next successful check.
+True immediate push notification for a total Pi outage requires a future
+always-on observer outside both devices.
+
 ## Containers
 
 The production Compose project will have three services:

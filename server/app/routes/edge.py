@@ -7,10 +7,52 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from ..db import get_session
+from ..edge_monitor import check_and_record, current_status, status_payload
+from ..models import EdgeStatusTransition
 
 
 router = APIRouter(prefix="/api/v1/edge", tags=["edge"])
+
+
+@router.get("/status")
+def get_edge_status(
+    history_limit: int = Query(12, ge=1, le=100),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    transitions = session.scalars(
+        select(EdgeStatusTransition)
+        .order_by(EdgeStatusTransition.changed_at.desc())
+        .limit(history_limit)
+    )
+    return {
+        "current": status_payload(current_status(session)),
+        "transitions": [
+            {
+                "id": item.transition_id,
+                "from_state": item.from_state,
+                "to_state": item.to_state,
+                "changed_at": item.changed_at,
+                "detail": item.detail,
+            }
+            for item in transitions
+        ],
+    }
+
+
+@router.post("/status/check")
+async def check_edge_status(request: Request) -> dict[str, Any]:
+    status = await run_in_threadpool(
+        check_and_record,
+        request.app.state.settings,
+        request.app.state.session_factory,
+    )
+    return {"current": status_payload(status)}
 
 
 @router.post("/sync")

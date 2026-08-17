@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from app.edge_monitor import probe_pi
 from .helpers import EDGE_TOKEN, edge_headers, gzip_json, make_batch
 
 
@@ -85,3 +86,25 @@ def test_manual_sync_proxies_the_acknowledged_pi_result(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["edge"]["delivered_samples"] == 14
     assert response.json()["edge"]["pending_samples"] == 0
+
+
+def test_pi_probe_classifies_bluetooth_disconnect(monkeypatch) -> None:
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self):
+            return b'{"bluetooth_connected":false,"collector":{"last_frame_at":"2026-08-17T20:00:00Z","last_error":"not found"}}'
+
+    monkeypatch.setattr("app.edge_monitor.urllib.request.urlopen", lambda *_args, **_kwargs: Response())
+    settings = Settings(
+        database_url="postgresql+psycopg://unused:unused@127.0.0.1:1/unused",
+        edge_api_token=EDGE_TOKEN,
+        pi_api_url="http://pi:8787",
+    )
+    result = probe_pi(settings)
+    assert result["state"] == "bosch_disconnected"
+    assert result["pi_reachable"] is True

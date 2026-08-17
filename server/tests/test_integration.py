@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.main import create_app
-from app.models import BatchEvent, Device, IngestBatch, MetricCatalogEntry, TelemetryEvent
+from app.models import BatchEvent, Device, EdgeStatus, EdgeStatusTransition, IngestBatch, MetricCatalogEntry, TelemetryEvent
 from .helpers import EDGE_TOKEN, edge_headers, gzip_json, make_batch, make_sample
 
 
@@ -25,6 +25,8 @@ pytestmark = pytest.mark.skipif(
 def database_engine():
     engine = create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
     with engine.begin() as connection:
+        connection.execute(text("DELETE FROM edge_status_transitions"))
+        connection.execute(text("DELETE FROM edge_status"))
         connection.execute(text("DELETE FROM batch_events"))
         connection.execute(text("DELETE FROM decoded_projections"))
         connection.execute(text("DELETE FROM telemetry_events"))
@@ -184,6 +186,44 @@ def test_dashboard_query_endpoints(client) -> None:
     assert faults.json()["faults"][0]["urgent_reason"] == "test fault"
     assert faults.json()["page"] == 1
     assert faults.json()["total"] == 1
+
+    daily = client.get(
+        "/api/v1/daily-summaries",
+        params={"days": 14, "timezone_name": "UTC"},
+    )
+    assert daily.status_code == 200, daily.text
+    day = daily.json()["days"][0]
+    assert day["date"] == "2026-08-13"
+    assert day["cycle_count"] == 1
+    assert day["peak_compressor_hz"] == 40
+    assert "Cooling ran" in day["narrative"]
+
+
+def test_edge_status_records_only_transitions(client, database_engine, monkeypatch) -> None:
+    now = datetime.now(timezone.utc)
+    result = {
+        "state": "healthy",
+        "checked_at": now,
+        "pi_reachable": True,
+        "bluetooth_connected": True,
+        "last_frame_at": now,
+        "detail": {"collector_version": "1.2.0"},
+    }
+    monkeypatch.setattr("app.edge_monitor.probe_pi", lambda _settings: result)
+
+    assert client.post("/api/v1/edge/status/check").status_code == 200
+    assert client.post("/api/v1/edge/status/check").status_code == 200
+    with Session(database_engine) as session:
+        assert session.scalar(select(func.count()).select_from(EdgeStatus)) == 1
+        assert session.scalar(select(func.count()).select_from(EdgeStatusTransition)) == 1
+
+    result = {**result, "state": "bosch_disconnected", "bluetooth_connected": False}
+    response = client.post("/api/v1/edge/status/check")
+    assert response.status_code == 200
+    assert response.json()["current"]["state"] == "bosch_disconnected"
+    history = client.get("/api/v1/edge/status").json()
+    assert len(history["transitions"]) == 2
+    assert history["transitions"][0]["to_state"] == "bosch_disconnected"
 
 
 def test_series_rejects_unknown_or_text_metrics(client) -> None:
