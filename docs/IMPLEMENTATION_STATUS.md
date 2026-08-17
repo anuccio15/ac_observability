@@ -56,6 +56,14 @@
   compressor demand, telemetry coverage, prior-day changes, and seven-day baseline
 - Hourly browser refresh cadence retained to support Synology sleep behavior
 
+## Completed in server v0.5.0
+
+- Decoder-v2 candidate mappings for outdoor-unit watts, total input current,
+  power factor, fan current/stage, and EEV opening
+- Historical raw-frame decoding without mutation of immutable ingested events
+- Gap-aware daily outdoor-unit kWh, average/peak kW, and high-effort duration
+- Current operating-effort and seven-day energy tables with confidence labels
+
 ## Next implementation slice
 
 1. Port decoder v1 to create immutable server-side projections.

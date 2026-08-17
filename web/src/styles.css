@@ -81,6 +81,11 @@ select { min-width: 215px; color: #e7eff2; background: #12212a; border: 1px soli
 .daily-metrics span { color: #718793; font-size: 10px; }
 .daily-metrics strong { font: 600 16px "SFMono-Regular", Consolas, monospace; color: #d4e1e5; }
 .summary-empty { min-height: 130px; }
+.daily-table { margin-top: 18px; }
+.daily-table th, .daily-table td { white-space: nowrap; }
+.effort-table { margin-top: 2px; }
+.effort-table td:nth-child(2) { color: #dbe7ea; font-family: "SFMono-Regular", Consolas, monospace; }
+.confidence { color: #8fa5af; font-size: 9px; text-transform: uppercase; letter-spacing: .04em; }
 .transition-list { margin-top: 12px; }
 .transition-list > div:not(.empty) { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid rgba(154, 184, 199, .09); }
 .transition-list p { margin: 0; display: flex; flex: 1; justify-content: space-between; gap: 10px; }

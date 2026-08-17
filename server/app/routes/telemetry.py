@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..models import Device, MetricCatalogEntry, TelemetryEvent
+from ..raw_decode import decode_candidate_metrics, raw_metric_sql
 
 
 router = APIRouter(prefix="/api/v1", tags=["telemetry"])
@@ -34,6 +35,8 @@ DEFAULT_SERIES_METRICS = (
     "condensing_pressure_pc_psig",
     "candidate_ac_input_voltage_v",
     "candidate_compressor_current_a",
+    "candidate_outdoor_unit_power_w",
+    "candidate_input_current_a",
 )
 SUMMARY_METRICS = (
     "compressor_set_hz",
@@ -110,6 +113,7 @@ def _device(session: Session, device_id: str | None) -> Device:
 def _event_payload(event: TelemetryEvent | None) -> dict[str, Any] | None:
     if event is None:
         return None
+    metrics = {**event.edge_metrics, **decode_candidate_metrics(event.raw_frame)}
     return {
         "event_id": event.event_id,
         "device_id": event.device_id,
@@ -118,7 +122,7 @@ def _event_payload(event: TelemetryEvent | None) -> dict[str, Any] | None:
         "decoder_version": event.decoder_version,
         "urgent": event.urgent,
         "urgent_reason": event.urgent_reason,
-        "metrics": event.edge_metrics,
+        "metrics": metrics,
     }
 
 
@@ -201,7 +205,7 @@ def telemetry_series(
         5,
         math.ceil((range_end - range_start).total_seconds() / max_points),
     )
-    query = text(
+    json_query = text(
         """
         SELECT
             to_timestamp(
@@ -222,6 +226,22 @@ def telemetry_series(
     )
     series: dict[str, Any] = {}
     for key in requested:
+        expression = raw_metric_sql(key)
+        query = text(
+            f"""
+            SELECT
+                to_timestamp(floor(extract(epoch FROM captured_at) / :bucket_seconds) * :bucket_seconds) AS bucket,
+                avg({expression}) AS average,
+                min({expression}) AS minimum,
+                max({expression}) AS maximum,
+                count(*) AS sample_count
+            FROM telemetry_events
+            WHERE device_id = :device_id
+              AND captured_at >= :range_start
+              AND captured_at <= :range_end
+            GROUP BY bucket ORDER BY bucket
+            """
+        ) if expression else json_query
         rows = session.execute(
             query,
             {
@@ -285,7 +305,7 @@ def telemetry_summary(
             TelemetryEvent.captured_at <= range_end,
         )
     ).one()
-    aggregate_query = text(
+    json_aggregate_query = text(
         """
         SELECT
             avg((edge_metrics ->> :metric_key)::double precision) AS average,
@@ -300,6 +320,12 @@ def telemetry_summary(
     )
     aggregates: dict[str, Any] = {}
     for key in SUMMARY_METRICS:
+        expression = raw_metric_sql(key)
+        aggregate_query = text(
+            f"""SELECT avg({expression}) AS average, min({expression}) AS minimum,
+            max({expression}) AS maximum FROM telemetry_events
+            WHERE device_id=:device_id AND captured_at>=:range_start AND captured_at<=:range_end"""
+        ) if expression else json_aggregate_query
         row = session.execute(
             aggregate_query,
             {
@@ -357,6 +383,8 @@ def daily_summaries(
                     CASE WHEN jsonb_typeof(edge_metrics -> 'outdoor_ambient_t4_f') = 'number'
                         THEN (edge_metrics ->> 'outdoor_ambient_t4_f')::double precision END AS outdoor_f,
                     urgent
+                    ,(get_byte(raw_frame, 110) + 256 * get_byte(raw_frame, 111))::double precision AS power_w
+                    ,(get_byte(raw_frame, 140) + 256 * get_byte(raw_frame, 141))::double precision / 10.0 AS input_current_a
                 FROM telemetry_events
                 WHERE device_id = :device_id
                   AND captured_at >= (CAST(:first_day AS date) AT TIME ZONE :timezone_name)
@@ -388,6 +416,14 @@ def daily_summaries(
                 max(outdoor_f) AS maximum_outdoor_temp_f,
                 avg(hz) FILTER (WHERE active = 1) AS average_compressor_hz,
                 max(hz) AS peak_compressor_hz,
+                avg(power_w) FILTER (WHERE active = 1) AS average_running_power_w,
+                max(power_w) AS peak_power_w,
+                coalesce(sum(CASE WHEN next_at IS NOT NULL AND next_at - captured_at <= interval '60 seconds'
+                    THEN power_w * extract(epoch FROM next_at - captured_at) / 3600000.0
+                    ELSE 0 END), 0) AS outdoor_energy_kwh,
+                coalesce(sum(CASE WHEN active = 1 AND (hz >= 60 OR input_current_a >= 15)
+                    AND next_at IS NOT NULL THEN least(extract(epoch FROM next_at - captured_at), 300)
+                    ELSE 0 END), 0) AS high_effort_seconds,
                 count(*) FILTER (WHERE urgent) AS urgent_count,
                 count(*) FILTER (
                     WHERE previous_at IS NOT NULL
@@ -420,6 +456,10 @@ def daily_summaries(
             "maximum_outdoor_temp_f": float(row.maximum_outdoor_temp_f) if row.maximum_outdoor_temp_f is not None else None,
             "average_compressor_hz": float(row.average_compressor_hz) if row.average_compressor_hz is not None else None,
             "peak_compressor_hz": float(row.peak_compressor_hz) if row.peak_compressor_hz is not None else None,
+            "average_running_power_w": float(row.average_running_power_w) if row.average_running_power_w is not None else None,
+            "peak_power_w": float(row.peak_power_w) if row.peak_power_w is not None else None,
+            "outdoor_energy_kwh": float(row.outdoor_energy_kwh),
+            "high_effort_seconds": float(row.high_effort_seconds),
             "urgent_count": row.urgent_count,
             "telemetry_gap_count": row.telemetry_gap_count,
             "telemetry_coverage_percent": min(100.0, float(row.telemetry_coverage_percent)),

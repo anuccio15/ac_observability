@@ -144,8 +144,15 @@ schedule and defaults to 3600 seconds.
 Daily summaries are calculated deterministically from stored telemetry using the
 browser's local timezone. They report cooling runtime, cycles, temperature,
 compressor demand, telemetry coverage/gaps, prior-day changes, and a seven-day
-runtime baseline. They intentionally do not claim energy consumption while the
-electrical mappings remain candidates.
+runtime baseline. Electrical consumption is presented as a visibly labeled
+candidate estimate while the raw-field mappings await EasyAir confirmation.
+
+Decoder-v2 candidate analysis also exposes outdoor-unit watts, total input
+current, power factor, fan current/stage, and EEV opening directly from immutable
+raw frames. Historical energy tables integrate watts only across contiguous
+observations, so collector outages are excluded instead of being counted as zero
+usage. These figures cover the outdoor unit, not the indoor blower or auxiliary
+heat, and remain visibly marked as candidates pending EasyAir confirmation.
 
 View recent logs or follow them live:
 

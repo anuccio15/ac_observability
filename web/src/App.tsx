@@ -19,6 +19,12 @@ const duration = (seconds: number) => {
   const minutes = Math.round((seconds % 3600) / 60);
   return hours ? `${hours}h ${minutes}m` : `${minutes} min`;
 };
+const effort = (hz: unknown) => {
+  if (typeof hz !== "number" || hz <= 0) return "Off";
+  if (hz <= 40) return "Low";
+  if (hz <= 55) return "Moderate";
+  return "High";
+};
 
 const STATUS_LABELS: Record<string, string> = {
   healthy: "Collector healthy",
@@ -56,12 +62,50 @@ function DailySummaryPanel({ days }: { days: DailySummary[] }) {
         <small>{latest.telemetry_coverage_percent.toFixed(1)}% telemetry coverage · {latest.telemetry_gap_count} gaps</small>
       </div>
       <div className="daily-metrics">
+        <div><span>Observed energy</span><strong>{number(latest.outdoor_energy_kwh, 2)} kWh</strong></div>
+        <div><span>Avg running power</span><strong>{number((latest.average_running_power_w ?? 0) / 1000, 2)} kW</strong></div>
         <div><span>Cooling runtime</span><strong>{duration(latest.cooling_runtime_seconds)}</strong></div>
-        <div><span>Cycles</span><strong>{latest.cycle_count}</strong></div>
-        <div><span>Avg outdoor</span><strong>{number(latest.average_outdoor_temp_f, 1)}°F</strong></div>
-        <div><span>Peak compressor</span><strong>{number(latest.peak_compressor_hz, 0)} Hz</strong></div>
+        <div><span>High effort</span><strong>{duration(latest.high_effort_seconds)}</strong></div>
       </div>
     </div>
+  );
+}
+
+function EffortTable({ metrics }: { metrics: Record<string, number | string | null> }) {
+  const rows = [
+    ["Effort category", effort(metrics.compressor_set_hz), "Derived"],
+    ["Outdoor input power", `${number((Number(metrics.candidate_outdoor_unit_power_w) || 0) / 1000, 2)} kW`, "Candidate · very high"],
+    ["Outdoor input current", `${number(metrics.candidate_input_current_a, 1)} A`, "Candidate · very high"],
+    ["Compressor current", `${number(metrics.candidate_compressor_current_a, 1)} A`, "Candidate"],
+    ["Power factor", number(metrics.candidate_power_factor, 3), "Derived candidate"],
+    ["Outdoor fan", `Stage ${number(metrics.candidate_outdoor_fan_stage)} · ${number(metrics.candidate_outdoor_fan_current_a, 1)} A`, "Candidate · high"],
+    ["EEV opening", number(metrics.candidate_eev_opening), "Candidate · high"]
+  ];
+  return (
+    <div className="table-wrap effort-table"><table>
+      <thead><tr><th>Metric</th><th>Current</th><th>Confidence</th></tr></thead>
+      <tbody>{rows.map(([label, value, confidence]) => <tr key={label}><td>{label}</td><td>{value}</td><td><span className="confidence">{confidence}</span></td></tr>)}</tbody>
+    </table></div>
+  );
+}
+
+function DailyEnergyTable({ days }: { days: DailySummary[] }) {
+  return (
+    <div className="table-wrap daily-table"><table>
+      <thead><tr><th>Date</th><th>Coverage</th><th>Runtime</th><th>Energy</th><th>Avg kW</th><th>Avg Hz</th><th>High effort</th></tr></thead>
+      <tbody>
+        {days.slice(0, 7).map((day) => <tr key={day.date}>
+          <td>{new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
+          <td>{number(day.telemetry_coverage_percent, 1)}%</td>
+          <td>{duration(day.cooling_runtime_seconds)}</td>
+          <td>{number(day.outdoor_energy_kwh, 2)} kWh</td>
+          <td>{number((day.average_running_power_w ?? 0) / 1000, 2)}</td>
+          <td>{number(day.average_compressor_hz, 1)}</td>
+          <td>{duration(day.high_effort_seconds)}</td>
+        </tr>)}
+        {!days.length && <tr><td colSpan={7} className="empty">No energy history available</td></tr>}
+      </tbody>
+    </table></div>
   );
 }
 
@@ -312,6 +356,7 @@ export default function App() {
           <article className="panel span-2 daily-panel">
             <div className="panel-head"><div><p className="eyebrow">DAILY INSIGHT</p><h2>Efficiency summary</h2></div><span>Deterministic · no LLM</span></div>
             <DailySummaryPanel days={daily} />
+            <DailyEnergyTable days={daily} />
           </article>
           <article className="panel status-history">
             <div className="panel-head"><div><p className="eyebrow">CONNECTIVITY</p><h2>Status history</h2></div><span>Transitions only</span></div>
@@ -342,8 +387,9 @@ export default function App() {
           </article>
           <article className="panel">
             <div className="panel-head"><div><p className="eyebrow">ELECTRICAL · CANDIDATE</p><h2>Inverter input</h2></div></div>
-            <MetricChart data={series} metrics={["candidate_ac_input_voltage_v", "candidate_compressor_current_a"]} />
-            <p className="candidate-note">Candidate mappings are plausible but remain under validation.</p>
+            <MetricChart data={series} metrics={["candidate_outdoor_unit_power_w"]} />
+            <EffortTable metrics={metrics} />
+            <p className="candidate-note">Power and current mappings are physically cross-validated but remain candidates pending EasyAir confirmation.</p>
           </article>
 
           <article className="panel span-2">

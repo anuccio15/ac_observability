@@ -151,11 +151,13 @@ def test_dashboard_query_endpoints(client) -> None:
     latest = client.get("/api/v1/telemetry/latest")
     assert latest.status_code == 200
     assert latest.json()["sample"]["metrics"]["compressor_set_hz"] == 40
+    assert "candidate_outdoor_unit_power_w" in latest.json()["sample"]["metrics"]
+    assert "candidate_input_current_a" in latest.json()["sample"]["metrics"]
 
     series = client.get(
         "/api/v1/telemetry/series",
         params={
-            "metrics": "compressor_set_hz,outdoor_ambient_t4_f",
+            "metrics": "compressor_set_hz,outdoor_ambient_t4_f,candidate_outdoor_unit_power_w",
             "start": "2026-08-13T21:00:00Z",
             "end": "2026-08-13T22:00:00Z",
             "max_points": 500,
@@ -163,6 +165,7 @@ def test_dashboard_query_endpoints(client) -> None:
     )
     assert series.status_code == 200, series.text
     assert series.json()["series"]["compressor_set_hz"]["points"]
+    assert series.json()["series"]["candidate_outdoor_unit_power_w"]["points"]
 
     summary = client.get("/api/v1/summary", params={"hours": 24 * 31})
     assert summary.status_code == 200
@@ -196,6 +199,8 @@ def test_dashboard_query_endpoints(client) -> None:
     assert day["date"] == "2026-08-13"
     assert day["cycle_count"] == 1
     assert day["peak_compressor_hz"] == 40
+    assert day["outdoor_energy_kwh"] >= 0
+    assert "peak_power_w" in day
     assert "Cooling ran" in day["narrative"]
 
 

@@ -116,6 +116,10 @@ export interface DailySummary {
   maximum_outdoor_temp_f: number | null;
   average_compressor_hz: number | null;
   peak_compressor_hz: number | null;
+  average_running_power_w: number | null;
+  peak_power_w: number | null;
+  outdoor_energy_kwh: number;
+  high_effort_seconds: number;
   urgent_count: number;
   telemetry_gap_count: number;
   telemetry_coverage_percent: number;
