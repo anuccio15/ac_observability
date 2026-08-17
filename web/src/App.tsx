@@ -3,6 +3,7 @@ import { api, type Cycle, type DailySummary, type Device, type EdgeStatus, type 
 import { MetricChart } from "./MetricChart";
 
 const RANGE_OPTIONS = [
+  { label: "2h", value: 2 },
   { label: "6h", value: 6 },
   { label: "24h", value: 24 },
   { label: "3d", value: 72 },
