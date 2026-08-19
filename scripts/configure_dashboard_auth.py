@@ -62,8 +62,8 @@ def main() -> None:
     confirmation = getpass.getpass("Confirm password: ")
     if password != confirmation:
         raise SystemExit("Passwords do not match")
-    if len(password) < 12:
-        raise SystemExit("Password must contain at least 12 characters")
+    if not password:
+        raise SystemExit("Password must not be empty")
 
     update_env(
         args.env_file,
