@@ -5,10 +5,21 @@ from fastapi.testclient import TestClient
 from app.config import Settings
 from app.main import create_app
 from app.edge_monitor import probe_pi
-from .helpers import EDGE_TOKEN, edge_headers, gzip_json, make_batch
+from .helpers import (
+    DASHBOARD_PASSWORD,
+    DASHBOARD_PASSWORD_HASH,
+    DASHBOARD_SESSION_SECRET,
+    EDGE_TOKEN,
+    edge_headers,
+    gzip_json,
+    login_dashboard,
+    make_batch,
+)
 
 
 def build_client(**overrides) -> TestClient:
+    overrides.setdefault("dashboard_password_hash", DASHBOARD_PASSWORD_HASH)
+    overrides.setdefault("dashboard_session_secret", DASHBOARD_SESSION_SECRET)
     settings = Settings(
         database_url="postgresql+psycopg://unused:unused@127.0.0.1:1/unused",
         edge_api_token=EDGE_TOKEN,
@@ -53,8 +64,37 @@ def test_ingestion_requires_gzip() -> None:
     assert response.status_code == 415
 
 
+def test_dashboard_api_requires_login() -> None:
+    with build_client() as client:
+        response = client.get("/api/v1/devices")
+    assert response.status_code == 401
+    assert response.json()["detail"] == "dashboard authentication required"
+
+
+def test_dashboard_login_and_logout() -> None:
+    with build_client() as client:
+        rejected = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "incorrect"},
+        )
+        assert rejected.status_code == 401
+
+        accepted = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": DASHBOARD_PASSWORD},
+        )
+        assert accepted.status_code == 200
+        assert accepted.json() == {"authenticated": True, "username": "admin"}
+        assert client.get("/api/v1/auth/session").json()["authenticated"] is True
+
+        logged_out = client.post("/api/v1/auth/logout")
+        assert logged_out.status_code == 200
+        assert client.get("/api/v1/auth/session").json()["authenticated"] is False
+
+
 def test_manual_sync_requires_pi_configuration() -> None:
     with build_client() as client:
+        login_dashboard(client)
         response = client.post("/api/v1/edge/sync")
     assert response.status_code == 503
 
@@ -82,6 +122,7 @@ def test_manual_sync_proxies_the_acknowledged_pi_result(monkeypatch) -> None:
         pi_api_token="pi-secret",
         pi_sync_timeout_seconds=5,
     ) as client:
+        login_dashboard(client)
         response = client.post("/api/v1/edge/sync")
     assert response.status_code == 200
     assert response.json()["edge"]["delivered_samples"] == 14

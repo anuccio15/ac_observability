@@ -46,6 +46,11 @@ services:
       AC_PI_STATUS_TIMEOUT_SECONDS: ${AC_PI_STATUS_TIMEOUT_SECONDS:-8}
       AC_PI_STATUS_INTERVAL_SECONDS: ${AC_PI_STATUS_INTERVAL_SECONDS:-3600}
       AC_TELEMETRY_STALE_SECONDS: ${AC_TELEMETRY_STALE_SECONDS:-900}
+      AC_DASHBOARD_USERNAME: ${AC_DASHBOARD_USERNAME:-admin}
+      AC_DASHBOARD_PASSWORD_HASH: ${AC_DASHBOARD_PASSWORD_HASH:?run scripts/configure_dashboard_auth.py}
+      AC_DASHBOARD_SESSION_SECRET: ${AC_DASHBOARD_SESSION_SECRET:?run scripts/configure_dashboard_auth.py}
+      AC_DASHBOARD_SESSION_TTL_SECONDS: ${AC_DASHBOARD_SESSION_TTL_SECONDS:-604800}
+      AC_DASHBOARD_COOKIE_SECURE: ${AC_DASHBOARD_COOKIE_SECURE:-false}
     ports:
       - "${AC_PORT:-8080}:8080"
     depends_on:
@@ -90,6 +95,8 @@ services:
     environment:
       AC_DATABASE_URL: postgresql+psycopg://ac_metrics_test:ac_metrics_test_password@test-db:5432/ac_metrics_test
       AC_EDGE_API_TOKEN: test-edge-token-that-is-at-least-32-characters
+      AC_DASHBOARD_PASSWORD_HASH: pbkdf2_sha256:600000:MDEyMzQ1Njc4OWFiY2RlZg:wb2l8JuhJjo7GeppjEHJHGWc-q6HhJMJY1Jfn0ZdfuE
+      AC_DASHBOARD_SESSION_SECRET: test-dashboard-session-secret-at-least-32-characters
     depends_on:
       test-db:
         condition: service_healthy

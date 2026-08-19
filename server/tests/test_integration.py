@@ -11,7 +11,16 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.main import create_app
 from app.models import BatchEvent, Device, EdgeStatus, EdgeStatusTransition, IngestBatch, MetricCatalogEntry, TelemetryEvent
-from .helpers import EDGE_TOKEN, edge_headers, gzip_json, make_batch, make_sample
+from .helpers import (
+    DASHBOARD_PASSWORD_HASH,
+    DASHBOARD_SESSION_SECRET,
+    EDGE_TOKEN,
+    edge_headers,
+    gzip_json,
+    login_dashboard,
+    make_batch,
+    make_sample,
+)
 
 
 TEST_DATABASE_URL = os.getenv("AC_TEST_DATABASE_URL")
@@ -40,8 +49,14 @@ def database_engine():
 
 @pytest.fixture()
 def client(database_engine):
-    settings = Settings(database_url=TEST_DATABASE_URL, edge_api_token=EDGE_TOKEN)
+    settings = Settings(
+        database_url=TEST_DATABASE_URL,
+        edge_api_token=EDGE_TOKEN,
+        dashboard_password_hash=DASHBOARD_PASSWORD_HASH,
+        dashboard_session_secret=DASHBOARD_SESSION_SECRET,
+    )
     with TestClient(create_app(settings=settings, engine=database_engine)) as test_client:
+        login_dashboard(test_client)
         yield test_client
 
 

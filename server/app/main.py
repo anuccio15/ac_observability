@@ -7,7 +7,8 @@ import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine
 
@@ -15,7 +16,8 @@ from . import __version__
 from .config import Settings, get_settings
 from .db import build_engine, build_session_factory
 from .edge_monitor import check_and_record
-from .routes import catalog, edge, health, ingest, telemetry
+from .dashboard_auth import read_session_token
+from .routes import auth, catalog, edge, health, ingest, telemetry
 
 
 def create_app(settings: Settings | None = None, engine: Engine | None = None) -> FastAPI:
@@ -62,8 +64,35 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     app.state.settings = settings
     app.state.engine = database_engine
     app.state.session_factory = session_factory
+
+    @app.middleware("http")
+    async def require_dashboard_session(request: Request, call_next):
+        path = request.url.path
+        public_api = (
+            path in {"/health", "/ready", "/v1/telemetry/batches"}
+            or path.startswith("/api/v1/auth/")
+        )
+        if path.startswith("/api") and not public_api:
+            session = read_session_token(
+                request.cookies.get(settings.dashboard_cookie_name),
+                settings.dashboard_session_secret.get_secret_value(),
+                settings.dashboard_username,
+            )
+            if session is None:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "dashboard authentication required"},
+                    headers={"Cache-Control": "no-store"},
+                )
+            request.state.dashboard_username = session.username
+        response = await call_next(request)
+        if path.startswith("/api/v1/auth/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
     app.include_router(health.router)
     app.include_router(ingest.router)
+    app.include_router(auth.router)
     app.include_router(catalog.router)
     app.include_router(telemetry.router)
     app.include_router(edge.router)

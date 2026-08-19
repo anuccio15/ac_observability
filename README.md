@@ -55,7 +55,7 @@ add versioned server-side projections without rewriting either source.
 
 ## Dashboard and read APIs
 
-The production container serves the AC Observatory dashboard at `/`. It refreshes
+The production container serves the authenticated AC Observatory dashboard at `/`. It refreshes
 hourly and on manual sync, and provides responsive compressor, thermal, refrigerant,
 pressure, electrical, cycle, connectivity-alert, daily-summary, and urgent-event
 views. Read-only data endpoints include:
@@ -94,7 +94,8 @@ size automatically so long ranges remain chartable without discarding raw events
 
 ```bash
 cp .env.example .env
-# Replace both example passwords/tokens in .env.
+# Replace the database password and edge token, then configure the dashboard login.
+python3 scripts/configure_dashboard_auth.py
 docker compose config
 docker compose up -d --build
 curl http://127.0.0.1:8080/health
@@ -113,8 +114,20 @@ SSH to the NAS and start or rebuild the application:
 ```bash
 ssh alexnuccio@192.168.0.117
 cd ~/projects/ac_observability
+python3 scripts/configure_dashboard_auth.py
 docker-compose up -d --build
 ```
+
+The authentication setup prompts for the `admin` password twice, writes only a
+PBKDF2 password hash plus a random session-signing secret to the uncommitted
+`.env`, and never prints or stores the plaintext password. Run it again whenever
+the password should change. Existing browser sessions are invalidated because a
+new signing secret is generated. Login sessions last seven days by default.
+
+Set `AC_DASHBOARD_COOKIE_SECURE=true` after the HTTPS reverse proxy hostname is
+working. Leave it false only while accessing the dashboard directly over local
+HTTP. Health/readiness probes and the Pi's bearer-token ingestion endpoint remain
+independent of the dashboard login.
 
 If the alias was added during the current SSH session, load it once with
 `. ~/.profile`. New SSH sessions load it automatically.

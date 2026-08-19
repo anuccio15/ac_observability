@@ -128,22 +128,37 @@ export interface DailySummary {
   versus_7_day_average: { cooling_runtime_seconds: number | null; comparison_days: number };
 }
 
-const json = async <T>(path: string): Promise<T> => {
-  const response = await fetch(path, { headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  return response.json() as Promise<T>;
-};
+export interface AuthSession {
+  authenticated: boolean;
+  username: string | null;
+}
 
-const post = async <T>(path: string): Promise<T> => {
+const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(path, {
-    method: "POST",
-    headers: { Accept: "application/json" }
+    credentials: "same-origin",
+    ...init,
+    headers: { Accept: "application/json", ...init?.headers }
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { detail?: string } | null;
+    if (response.status === 401 && !path.startsWith("/api/v1/auth/")) {
+      window.dispatchEvent(new Event("ac-auth-required"));
+    }
     throw new Error(payload?.detail || `${response.status} ${response.statusText}`);
   }
   return response.json() as Promise<T>;
+};
+
+const json = async <T>(path: string): Promise<T> => {
+  return request<T>(path);
+};
+
+const post = async <T>(path: string, body?: unknown): Promise<T> => {
+  return request<T>(path, {
+    method: "POST",
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
 };
 
 const query = (values: Record<string, string | number | undefined>) => {
@@ -155,6 +170,10 @@ const query = (values: Record<string, string | number | undefined>) => {
 };
 
 export const api = {
+  authSession: () => json<AuthSession>("/api/v1/auth/session"),
+  login: (username: string, password: string) =>
+    post<AuthSession>("/api/v1/auth/login", { username, password }),
+  logout: () => post<AuthSession>("/api/v1/auth/logout"),
   devices: () => json<{ devices: Device[] }>("/api/v1/devices"),
   summary: (deviceId: string, hours: number) =>
     json<SummaryResponse>(`/api/v1/summary?${query({ device_id: deviceId, hours })}`),

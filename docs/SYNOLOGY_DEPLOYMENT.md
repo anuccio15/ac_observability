@@ -27,6 +27,7 @@ the example. Generate independent secrets rather than reusing a DSM password.
 ```bash
 cd /volume1/docker/ac_metrics/app
 cp .env.example .env
+python3 scripts/configure_dashboard_auth.py
 openssl rand -hex 32
 openssl rand -hex 32
 ```
@@ -46,6 +47,9 @@ AC_PORT=8080
 If the database password contains URL-reserved punctuation it must be URL encoded
 inside `AC_DATABASE_URL`. Hex output from the command above needs no encoding.
 Keep `.env` private and supply the same `AC_EDGE_API_TOKEN` to the Pi collector.
+The authentication configurator stores only a PBKDF2 password hash and a random
+session-signing secret. After HTTPS is active, set
+`AC_DASHBOARD_COOKIE_SECURE=true` and rebuild the app container.
 
 ## 3. Validate and start
 

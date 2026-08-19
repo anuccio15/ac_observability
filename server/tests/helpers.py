@@ -4,8 +4,16 @@ import gzip
 import hashlib
 import json
 
+from fastapi.testclient import TestClient
+
+from app.dashboard_auth import hash_password
+
 
 EDGE_TOKEN = "test-edge-token-that-is-at-least-32-characters"
+DASHBOARD_USERNAME = "admin"
+DASHBOARD_PASSWORD = "test-dashboard-password"
+DASHBOARD_PASSWORD_HASH = hash_password(DASHBOARD_PASSWORD)
+DASHBOARD_SESSION_SECRET = "test-dashboard-session-secret-at-least-32-characters"
 DEVICE_ID = "1C:C0:89:66:69:14"
 RAW_FRAME_HEX = (
     "a5b10200000056005e005d00730056006b00d000f6002c004e006b0059002d00"
@@ -67,3 +75,11 @@ def edge_headers(token: str = EDGE_TOKEN) -> dict[str, str]:
         "Content-Type": "application/json",
         "Content-Encoding": "gzip",
     }
+
+
+def login_dashboard(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"username": DASHBOARD_USERNAME, "password": DASHBOARD_PASSWORD},
+    )
+    assert response.status_code == 200, response.text

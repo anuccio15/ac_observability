@@ -109,6 +109,11 @@ The system assumes the Synology can be unavailable at any time:
 ## Security and operations
 
 - Store secrets only in an uncommitted `.env` or Docker secrets.
+- Dashboard/API access uses a configurable single-user login and a signed,
+  HTTP-only, SameSite=Strict session cookie. Passwords are stored only as salted
+  PBKDF2-SHA256 hashes.
+- Liveness/readiness and the independently bearer-authenticated Pi ingestion
+  endpoint do not require a dashboard session.
 - Compare the edge bearer token in constant time.
 - Bind the application to the LAN; use DSM reverse proxy certificates for HTTPS.
 - Run application containers as non-root and use read-only filesystems where

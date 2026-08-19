@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type Cycle, type DailySummary, type Device, type EdgeStatus, type EdgeTransition, type Page, type Sample, type SeriesResponse, type SummaryResponse } from "./api";
 import { MetricChart } from "./MetricChart";
 
@@ -189,7 +189,51 @@ const emptyPage = <T,>(page: number, pageSize: number): Page<T> => ({
   page, page_size: pageSize, total: 0, total_pages: 0, items: []
 });
 
-export default function App() {
+function LoginScreen({ onLogin }: { onLogin: (username: string) => void }) {
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await api.login(username, password);
+      if (result.authenticated && result.username) onLogin(result.username);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to sign in");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <main className="login-page">
+      <section className="login-card" aria-labelledby="login-title">
+        <div className="login-brand">
+          <div className="brand-mark"><span /></div>
+          <div><strong>AC Observatory</strong><small>Bosch IDS Premium Connected</small></div>
+        </div>
+        <div className="login-copy">
+          <p className="eyebrow">AUTHORIZED ACCESS</p>
+          <h1 id="login-title">Sign in to telemetry</h1>
+          <p>Monitor outdoor-unit performance, operating effort, and equipment status.</p>
+        </div>
+        <form onSubmit={(event) => void submit(event)}>
+          <label>Username<input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></label>
+          <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+          {error && <div className="login-error" role="alert">{error}</div>}
+          <button type="submit" disabled={submitting}>{submitting ? "Signing in…" : "Sign in"}</button>
+        </form>
+        <small className="login-footnote">Read-only HVAC monitoring</small>
+      </section>
+    </main>
+  );
+}
+
+function Dashboard({ username, onLogout }: { username: string; onLogout: () => void }) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [deviceId, setDeviceId] = useState("");
   const [hours, setHours] = useState(24);
@@ -303,6 +347,7 @@ export default function App() {
           <button className="refresh" onClick={() => void syncFromPi()} disabled={syncing || loading}>
             {syncing ? "Syncing Pi…" : loading ? "Loading…" : "Sync from Pi"}
           </button>
+          <div className="user-menu"><span>{username}</span><button onClick={onLogout}>Sign out</button></div>
         </div>
       </header>
 
@@ -406,4 +451,36 @@ export default function App() {
       <footer><span>AC Observatory · Read-only equipment monitoring</span><span>Last dashboard refresh {lastRefresh?.toLocaleTimeString() ?? "—"}</span></footer>
     </div>
   );
+}
+
+export default function App() {
+  const [username, setUsername] = useState<string | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    api.authSession()
+      .then((result) => setUsername(result.authenticated ? result.username : null))
+      .catch(() => setUsername(null))
+      .finally(() => setCheckingSession(false));
+  }, []);
+
+  useEffect(() => {
+    const requireLogin = () => setUsername(null);
+    window.addEventListener("ac-auth-required", requireLogin);
+    return () => window.removeEventListener("ac-auth-required", requireLogin);
+  }, []);
+
+  const logout = async () => {
+    try {
+      await api.logout();
+    } finally {
+      setUsername(null);
+    }
+  };
+
+  if (checkingSession) {
+    return <main className="login-page"><div className="session-loading">Loading AC Observatory…</div></main>;
+  }
+  if (!username) return <LoginScreen onLogin={setUsername} />;
+  return <Dashboard username={username} onLogout={() => void logout()} />;
 }

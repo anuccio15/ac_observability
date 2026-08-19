@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     pi_status_timeout_seconds: float = 8.0
     pi_status_interval_seconds: int = 3600
     telemetry_stale_seconds: int = 900
+    dashboard_username: str = "admin"
+    dashboard_password_hash: SecretStr = Field(min_length=32)
+    dashboard_session_secret: SecretStr = Field(min_length=32)
+    dashboard_session_ttl_seconds: int = 7 * 24 * 60 * 60
+    dashboard_cookie_name: str = "ac_dashboard_session"
+    dashboard_cookie_secure: bool = False
 
     @field_validator("database_url")
     @classmethod
@@ -43,11 +49,20 @@ class Settings(BaseSettings):
         "pi_status_timeout_seconds",
         "pi_status_interval_seconds",
         "telemetry_stale_seconds",
+        "dashboard_session_ttl_seconds",
     )
     @classmethod
     def require_positive_limit(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("batch limits must be positive")
+        return value
+
+    @field_validator("dashboard_username", "dashboard_cookie_name")
+    @classmethod
+    def require_nonempty_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("dashboard authentication names must not be empty")
         return value
 
 
